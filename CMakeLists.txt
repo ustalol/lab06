@@ -34,7 +34,15 @@ add_subdirectory(solver_lib)
 add_subdirectory(hello_world_application)
 add_subdirectory(solver_application)
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION include
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/formatter_lib/
+        DESTINATION include/formatter_lib
         FILES_MATCHING PATTERN "*.h")
 
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/formatter_ex_lib/
+        DESTINATION include/formatter_ex_lib
+        FILES_MATCHING PATTERN "*.h")
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/solver_lib/
+        DESTINATION include/solver_lib
+        FILES_MATCHING PATTERN "*.h")
 include(CPack)
