@@ -33,16 +33,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y cmake g++ make libfmt-dev rpm
 
-    - name: Install dependencies (Windows)
+    - name: Install MSBuild (Windows)
       if: matrix.os == 'windows-latest'
       uses: microsoft/setup-msbuild@v2
       with:
         vs-version: '17.0'
 
-    - name: Install WiX (Windows)
+    - name: Install WiX Toolset (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install wixtoolset -y
+        choco install wixtoolset --yes
+        echo "WiX installed successfully"
+        where candle || echo "candle not found"
+        where light || echo "light not found"
 
     - name: Install dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -69,13 +72,13 @@ jobs:
       run: |
         cd build
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          cpack -G "DEB;RPM" || echo "Linux package generation failed"
+          cpack -G "DEB;RPM" --verbose
           cp *.deb *.rpm packages/ 2>/dev/null || true
         elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          cpack -G "WIX" || echo "Windows package generation failed"
-          cp *.msi packages/ 2>/dev/null || true
+          cpack -G "WIX" --verbose
+          find . -name "*.msi" -exec cp {} packages/ \;
         else
-          cpack -G "DragNDrop" || echo "macOS package generation failed"
+          cpack -G "DragNDrop" --verbose
           cp *.dmg packages/ 2>/dev/null || true
         fi
 
