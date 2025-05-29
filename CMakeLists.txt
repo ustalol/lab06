@@ -34,4 +34,7 @@ add_subdirectory(solver_lib)
 add_subdirectory(hello_world_application)
 add_subdirectory(solver_application)
 
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+
 include(CPack)
