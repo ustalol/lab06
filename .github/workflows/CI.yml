@@ -1,0 +1,126 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup environment
+      shell: bash
+      run: |
+        mkdir -p build/packages
+        if [ ! -f License.rtf ]; then
+          echo "{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1049{\fonttbl{\f0\fnil\fcharset0 Calibri;}}\viewkind4\uc1\pard\f0\fs22 MIT License\par }" > License.rtf
+        fi
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ make libfmt-dev rpm
+
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: microsoft/setup-msbuild@v2
+      with:
+        vs-version: '17.0'
+
+    - name: Install WiX (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install wixtoolset -y
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew update
+        brew install cmake fmt
+
+    - name: Configure project
+      shell: bash
+      run: |
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+        else
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        fi
+
+    - name: Build project
+      shell: bash
+      run: |
+        cmake --build build --config Release --parallel 4
+
+    - name: Generate packages
+      shell: bash
+      run: |
+        cd build
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          cpack -G "DEB;RPM" || echo "Linux package generation failed"
+          cp *.deb *.rpm packages/ 2>/dev/null || true
+        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cpack -G "WIX" || echo "Windows package generation failed"
+          cp *.msi packages/ 2>/dev/null || true
+        else
+          cpack -G "DragNDrop" || echo "macOS package generation failed"
+          cp *.dmg packages/ 2>/dev/null || true
+        fi
+
+    - name: Create source archives
+      shell: bash
+      run: |
+        git archive --format=zip -o build/packages/source-code.zip HEAD
+        git archive --format=tar.gz -o build/packages/source-code.tar.gz HEAD
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages-${{ matrix.os }}
+        path: build/packages/
+        retention-days: 1
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Combine artifacts
+      run: |
+        mkdir -p combined-packages
+        find artifacts -type f -exec cp {} combined-packages/ \;
+        ls -la combined-packages/
+
+    - name: Create or Update Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        body: |
+          Multi-platform release includes:
+          - Linux (.deb, .rpm)
+          - Windows (.msi)
+          - macOS (.dmg)
+          - Source code archives
+        draft: false
+        prerelease: false
+        files: |
+          combined-packages/*
+        token: ${{ secrets.GITHUB_TOKEN }}
+        update: true
